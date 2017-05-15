@@ -7,6 +7,14 @@ from svmutil import *
 import os
 os.chdir('/Users/joey/libsvm-3.22/tools/')
 
+#input_file = /Users/joey/Documents/stockcal/
+#PPP = /Users/joey/Documents/stockcal/cal/
+#output_file = /Users/joey/Documents/stockcal/libsvm_format/
+#rulepath = "/Users/joey/Documents/stockcal/rule/"
+#pscalepath = "/Users/joey/Documents/stockcal/scale/"
+#modelpath = "/Users/joey/Documents/stockcal/model/"
+#gridpath = "/Users/joey/Documents/stockcal/grid/"
+
 df = pd.read_csv("/Users/joey/Documents/stock.csv",parse_dates=True)
 
 #指標
@@ -65,8 +73,6 @@ def construct_line( label, line ):
     new_line.append( str(float(label) ))
 
     for i, item in enumerate( line ):
-        if item == '' or float( item ) == 0.0 :
-            continue
         new_item = "%s:%s" % ( i + 1, item )
         new_line.append( new_item )
     new_line = " ".join( new_line )
@@ -114,6 +120,16 @@ for i in range(len(rulepath)):
     params = "svm-scale -s "+rulepath[i]+" "+output_file[i]+" >"+scalepath[i]
     os.system(params)
 '''
+#Grid
+'''
+for i in range(len(gridpath)):
+        try:
+            params = "python grid2.py -log2c -5,5,1 -log2g -5,5,1 -log2p -5,5,1 -out "+gridpath[i]+" -s 3 -t 2 "+scalepath[i]
+            os.system(params)
+        except:
+            print scalepath[i]
+        continue
+'''
 #Train
 def trainModel(grid,model,data,ori):
     origin = pd.read_csv(ori)
@@ -121,7 +137,7 @@ def trainModel(grid,model,data,ori):
     trainSize = int(0.8*lens)
     y,x = svm_read_problem(data)
     
-    '''
+    
     rule = pd.read_table(grid,sep = " ",header = None)
     log2c = []
     log2g = []
@@ -145,9 +161,9 @@ def trainModel(grid,model,data,ori):
     rule = rule[rule.ix[:,3] == rule.ix[:,3].min()].iloc[-1,:]
     rule.iloc[0] = 2**int(rule.iloc[0])
     rule.iloc[1] = 2**int(rule.iloc[1])
-    rule.iloc[2] = 2**int(rule.iloc[2])'''
-    #params = '-c '+str(rule.iloc[0])+" -s 3 -t 2 -g "+str(rule.iloc[1])+" -p "+str(rule.iloc[2])
-    params1 = "-c 1 -s 3 -t 2 -p 0.03125 -g 0.03125"
+    rule.iloc[2] = 2**int(rule.iloc[2])
+    params1 = '-c '+str(rule.iloc[0])+" -s 3 -t 2 -g "+str(rule.iloc[1])+" -p "+str(rule.iloc[2])
+    #params1 = "-c 1 -s 3 -t 2 -p 0.03125 -g 0.03125"
     m = svm_train(y[:trainSize],x[:trainSize],params1)
     svm_save_model(model,m)
 
@@ -165,7 +181,7 @@ def getAccuracy(code):
     data = "/Users/joey/Documents/stockcal/libsvm_format/"+str(code)+".txt"
     y,x = svm_read_problem(data)
     p_label, p_acc, p_val = svm_predict(y[trainSize:], x[trainSize:], m)
-    result = "name: %s , Mean squared error: %f , Squared correlation %f\n"%(str(code),p_acc[1],p_acc[2])
+    #result = "name: %s , Mean squared error: %f , Squared correlation %f\n"%(str(code),p_acc[1],p_acc[2])
     predict = pd.Series(p_label)
     predict = predict-predict.shift(1)
     predict = predict.dropna(axis = 0)
@@ -179,15 +195,24 @@ def getAccuracy(code):
     a = a.apply(lambda x:1 if x==True else 0)
     for i in a:
         b +=i
-    accuracy = float(b)/float(a.shape[0])
+    if float(b) != 0.0 or float(a.shape[0])!= 0.0:
+        accuracy = float(b)/float(a.shape[0])
+    else: accuracy = 0
     return accuracy
 
 def getPlot(code):
+    MP = "/Users/joey/Documents/stockcal/model/"+str(code)+".txt"
+    m = svm_load_model(MP)
+    
+    data = "/Users/joey/Documents/stockcal/libsvm_format/"+str(code)+".txt"
     path = '/Users/joey/Documents/stockcal/'+str(code)
     origin = pd.read_csv(path)
     lens = origin.shape[0]
-    plt.figure(figsize=(20,20)) 
+    plt.figure(figsize=(10,8)) 
+    trainSize = int(0.8*lens)
     testSize = lens - trainSize
+    y,x = svm_read_problem(data)
+    p_label, p_acc, p_val = svm_predict(y[trainSize:], x[trainSize:], m)
     with plt.style.context('fivethirtyeight'):
         plt.tick_params(
         axis='x',          # changes apply to the x-axis
@@ -202,6 +227,7 @@ def getPlot(code):
         #生成图例并指定图例位置。本例中loc='best'和loc='upper left'效果相同
         plt.legend(loc = 'best')
         plt.title(str(code))
+        plt.show()
 
 def getPrice(code,data):
     MP = "/Users/joey/Documents/stockcal/model/"+str(code)+".txt"
@@ -209,12 +235,3 @@ def getPrice(code,data):
     y,x = svm_read_problem(data)
     p_label, p_acc, p_val = svm_predict(y, x, m)
     return p_label
-
-
-
-
-
-
-
-
-
